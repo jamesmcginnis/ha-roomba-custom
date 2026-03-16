@@ -108,6 +108,13 @@ class RoombaVacuum(StateVacuumEntity):
     # ------------------------------------------------------------------
 
     async def async_added_to_hass(self) -> None:
+        # FIX 1: Seed local state from the shared data object immediately on
+        # registration. The MQTT client may have already connected and fired
+        # callbacks before this entity subscribed to the dispatcher signals,
+        # leaving self._connected stuck at False and all controls greyed out.
+        self._connected = self._data.connected
+        self._state = self._data.state
+
         self.async_on_remove(
             async_dispatcher_connect(
                 self.hass,
@@ -164,7 +171,12 @@ class RoombaVacuum(StateVacuumEntity):
             return VacuumActivity.IDLE
         if ha_state == "error":
             return VacuumActivity.ERROR
-        return None
+
+        # FIX 2: Return IDLE instead of None when the phase is unrecognised or
+        # the first state update hasn't arrived yet. Returning None causes HA to
+        # treat the entity as fully unknown and disables all controls including
+        # the on/off toggle, even when the robot is connected and ready.
+        return VacuumActivity.IDLE
 
     @property
     def battery_level(self) -> int | None:
