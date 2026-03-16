@@ -15,7 +15,9 @@ robots — same approach as getRoombaCredentials.js in homebridge-iRobot-v2.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import threading
 from typing import Any
 
 import voluptuous as vol
@@ -43,7 +45,6 @@ from .roomba_mqtt import RoombaClient
 
 _LOGGER = logging.getLogger(__name__)
 
-# Extra config-flow-only keys (not stored in entry data)
 CONF_IROBOT_EMAIL    = "irobot_email"
 CONF_IROBOT_PASSWORD = "irobot_password"
 CONF_SETUP_MODE      = "setup_mode"
@@ -53,14 +54,7 @@ SETUP_MODE_MANUAL = "manual"
 
 
 class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """
-    Multi-step config flow.
-
-    Step 1  — choose cloud or manual
-    Step 2a — cloud: enter iRobot email + password
-    Step 2b — pick: if multiple robots found, choose one
-    Step 2c — manual: enter IP, BLID, password
-    """
+    """Multi-step config flow — cloud auto-discovery or manual entry."""
 
     VERSION = 1
 
@@ -75,7 +69,6 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """First screen — cloud vs manual."""
         if user_input is not None:
             if user_input[CONF_SETUP_MODE] == SETUP_MODE_CLOUD:
                 return await self.async_step_cloud()
@@ -89,20 +82,15 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     SETUP_MODE_MANUAL: "Enter credentials manually (IP address, BLID and local password)",
                 }),
             }),
-            description_placeholders={},
         )
 
     # ------------------------------------------------------------------
-    # Step 2a — cloud login (email + password)
+    # Step 2a — cloud login
     # ------------------------------------------------------------------
 
     async def async_step_cloud(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """
-        Mirrors the Homebridge plugin's email + password login.
-        Calls Gigya → iRobot cloud → UDP discovery automatically.
-        """
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -110,17 +98,15 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             password = user_input[CONF_IROBOT_PASSWORD]
 
             try:
-                robots = await self.hass.async_add_executor_job(
-                    lambda: self.hass.loop.run_until_complete(
-                        discover_robots(email, password)
-                    )
-                )
+                # FIX: discover_robots is a native coroutine — await it directly.
+                # The previous code wrapped it in run_until_complete() inside an
+                # executor job, which raises RuntimeError because the loop is
+                # already running in HA's async context.
+                robots = await discover_robots(email, password)
+
             except CloudAuthError as exc:
                 err = str(exc)
-                if "invalid_credentials" in err:
-                    errors["base"] = "invalid_auth"
-                else:
-                    errors["base"] = "cloud_error"
+                errors["base"] = "invalid_auth" if "invalid_credentials" in err else "cloud_error"
                 _LOGGER.warning("Cloud discovery error: %s", exc)
                 robots = []
             except Exception as exc:
@@ -130,13 +116,9 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             if robots and not errors:
                 self._discovered_robots = robots
-
                 if len(robots) == 1:
-                    # Only one robot — skip the picker
                     self._selected_robot = robots[0]
                     return await self._create_or_confirm()
-
-                # Multiple robots — show picker
                 return await self.async_step_pick()
 
         return self.async_show_form(
@@ -146,17 +128,15 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_IROBOT_PASSWORD): str,
             }),
             errors=errors,
-            description_placeholders={},
         )
 
     # ------------------------------------------------------------------
-    # Step 2b — pick robot (if account has multiple)
+    # Step 2b — pick robot (multiple robots on account)
     # ------------------------------------------------------------------
 
     async def async_step_pick(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Let the user choose which robot to set up (multi-robot accounts)."""
         if user_input is not None:
             blid = user_input["robot"]
             self._selected_robot = next(
@@ -175,19 +155,16 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required("robot"): vol.In(robot_options),
             }),
-            description_placeholders={
-                "count": str(len(self._discovered_robots)),
-            },
+            description_placeholders={"count": str(len(self._discovered_robots))},
         )
 
     # ------------------------------------------------------------------
-    # Step 2c — manual entry (IP + BLID + local password)
+    # Step 2c — manual entry
     # ------------------------------------------------------------------
 
     async def async_step_manual(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Manual credential entry — identical to the previous single-step flow."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -204,8 +181,8 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"Roomba ({user_input[CONF_IP]})",
                     data={
                         **user_input,
-                        CONF_LOW_BATTERY:     DEFAULT_LOW_BATTERY,
-                        CONF_OFF_ACTION:      DEFAULT_OFF_ACTION,
+                        CONF_LOW_BATTERY:       DEFAULT_LOW_BATTERY,
+                        CONF_OFF_ACTION:        DEFAULT_OFF_ACTION,
                         CONF_HIDE_STUCK_SENSOR: False,
                         CONF_HIDE_BIN_SENSOR:   False,
                     },
@@ -223,7 +200,7 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }),
             errors=errors,
             description_placeholders={
-                "help_url": "https://github.com/jamesmcginnis/ha-roomba-custom#getting-your-credentials",
+                "help_url": "https://github.com/jamesmcginnis/ha-roomba-custom#setup",
             },
         )
 
@@ -232,11 +209,6 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     # ------------------------------------------------------------------
 
     async def _create_or_confirm(self) -> config_entries.FlowResult:
-        """
-        Create the config entry from a discovered robot.
-        If the IP is missing (robot not on network right now), drop to manual
-        entry pre-filled with the known BLID and password.
-        """
         robot = self._selected_robot
         if not robot:
             return await self.async_step_manual()
@@ -244,38 +216,35 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(robot.blid)
         self._abort_if_unique_id_configured()
 
-        # If we got an IP from cloud/UDP, create the entry straight away
         if robot.ip:
             return self.async_create_entry(
                 title=robot.name,
                 data={
-                    CONF_IP:               robot.ip,
-                    CONF_BLID:             robot.blid,
-                    CONF_ROOMBA_PASSWORD:  robot.password,
-                    CONF_PROTOCOL_VERSION: DEFAULT_PROTOCOL_VERSION,
-                    CONF_LOW_BATTERY:      DEFAULT_LOW_BATTERY,
-                    CONF_OFF_ACTION:       DEFAULT_OFF_ACTION,
+                    CONF_IP:                robot.ip,
+                    CONF_BLID:              robot.blid,
+                    CONF_ROOMBA_PASSWORD:   robot.password,
+                    CONF_PROTOCOL_VERSION:  DEFAULT_PROTOCOL_VERSION,
+                    CONF_LOW_BATTERY:       DEFAULT_LOW_BATTERY,
+                    CONF_OFF_ACTION:        DEFAULT_OFF_ACTION,
                     CONF_HIDE_STUCK_SENSOR: False,
                     CONF_HIDE_BIN_SENSOR:   False,
                 },
             )
 
-        # No IP found — show manual form pre-filled with BLID + password
-        _LOGGER.warning(
-            "Could not auto-discover IP for %s — asking user to enter it", robot.name
-        )
+        # IP not found — fall back to manual form pre-filled with BLID + password
+        _LOGGER.warning("No IP found for %s — asking user to enter it manually", robot.name)
         return self.async_show_form(
             step_id="manual",
             data_schema=vol.Schema({
-                vol.Required(CONF_IP):              str,
-                vol.Required(CONF_BLID,    default=robot.blid):     str,
+                vol.Required(CONF_IP):                                      str,
+                vol.Required(CONF_BLID,            default=robot.blid):     str,
                 vol.Required(CONF_ROOMBA_PASSWORD, default=robot.password): str,
                 vol.Optional(CONF_PROTOCOL_VERSION, default=DEFAULT_PROTOCOL_VERSION):
                     vol.In([1, 2, 3]),
             }),
             errors={},
             description_placeholders={
-                "help_url": "https://github.com/jamesmcginnis/ha-roomba-custom#getting-your-credentials",
+                "help_url": "https://github.com/jamesmcginnis/ha-roomba-custom#setup",
             },
         )
 
@@ -286,14 +255,22 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         password: str,
         protocol_version: int,
     ) -> bool:
-        """Quick connection test to validate manual credentials."""
-        import asyncio
+        """
+        Test a manual connection.
+
+        FIX: paho's loop_start() runs callbacks on a background thread.
+        asyncio.Event.set() is NOT thread-safe — calling it directly from
+        the paho thread causes the event to never wake the awaiting coroutine.
+        The fix is loop.call_soon_threadsafe() which safely schedules the
+        set() call back onto the event loop thread.
+        """
+        loop      = asyncio.get_running_loop()
         connected = asyncio.Event()
         client    = RoombaClient(host, blid, password, protocol_version)
 
         def _on_conn(is_connected: bool) -> None:
             if is_connected:
-                connected.set()
+                loop.call_soon_threadsafe(connected.set)
 
         client.add_connection_callback(_on_conn)
         try:
@@ -323,8 +300,6 @@ class RoombaCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class RoombaCustomOptionsFlow(config_entries.OptionsFlow):
-    """Options flow — shown when user clicks Configure on the integration card."""
-
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._config_entry = config_entry
 
