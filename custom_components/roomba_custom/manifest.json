@@ -1,7 +1,7 @@
 {
   "domain": "roomba_custom",
   "name": "Roomba Local (Legacy TLS)",
-  "version": "0.0.45",
+  "version": "0.0.5",
   "config_flow": true,
   "documentation": "https://github.com/jamesmcginnis/ha-roomba-custom",
   "issue_tracker": "https://github.com/jamesmcginnis/ha-roomba-custom/issues",
