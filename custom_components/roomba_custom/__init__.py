@@ -63,15 +63,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = data
 
     def _on_state(state: dict) -> None:
+        # Paho calls this from its own background thread.
+        # async_dispatcher_send must only run on the HA event loop thread —
+        # calling it directly from here silently drops the signal.
+        # call_soon_threadsafe schedules it correctly onto the loop thread.
         data.state = state
-        async_dispatcher_send(
-            hass, SIGNAL_STATE_UPDATED.format(entry_id=entry.entry_id)
+        hass.loop.call_soon_threadsafe(
+            async_dispatcher_send,
+            hass,
+            SIGNAL_STATE_UPDATED.format(entry_id=entry.entry_id),
         )
 
     def _on_connection(connected: bool) -> None:
+        # Same thread-safety fix as _on_state above.
         data.connected = connected
-        async_dispatcher_send(
-            hass, SIGNAL_CONNECTION_CHANGED.format(entry_id=entry.entry_id)
+        hass.loop.call_soon_threadsafe(
+            async_dispatcher_send,
+            hass,
+            SIGNAL_CONNECTION_CHANGED.format(entry_id=entry.entry_id),
         )
 
     client.add_state_callback(_on_state)
