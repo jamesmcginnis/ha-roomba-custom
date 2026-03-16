@@ -1,8 +1,6 @@
 # Roomba Custom (Legacy TLS)
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/jamesmcginnis/ha-roomba-custom.svg?style=flat-square)](https://github.com/jamesmcginnis/ha-roomba-custom/releases)
-[![GitHub Activity](https://img.shields.io/github/commit-activity/y/jamesmcginnis/ha-roomba-custom.svg?style=flat-square)](https://github.com/jamesmcginnis/ha-roomba-custom/commits/main)
 [![License](https://img.shields.io/github/license/jamesmcginnis/ha-roomba-custom.svg?style=flat-square)](LICENSE)
 
 A Home Assistant custom integration for iRobot Roomba that connects **directly over your local network** — no cloud polling, no internet dependency once set up.
