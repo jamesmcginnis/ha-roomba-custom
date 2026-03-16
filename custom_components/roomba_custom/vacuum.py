@@ -59,6 +59,8 @@ SUPPORTED_FEATURES = (
     | VacuumEntityFeature.BATTERY
     | VacuumEntityFeature.STATE
     | VacuumEntityFeature.SEND_COMMAND
+    | VacuumEntityFeature.TURN_ON
+    | VacuumEntityFeature.TURN_OFF
 )
 
 
@@ -213,6 +215,22 @@ class RoombaVacuum(StateVacuumEntity):
     # ------------------------------------------------------------------
     # Commands — mirrors set() and related methods in platformAccessory.ts
     # ------------------------------------------------------------------
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on / start cleaning — alias for async_start.
+
+        vacuum.turn_on was removed from HA core but some dashboard cards
+        (Tile card, older Lovelace cards) still call it. This alias makes
+        those cards work without any changes on the user's side.
+        """
+        await self.async_start()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off — alias for async_stop.
+
+        Mirrors the off-action config (pause+dock by default).
+        """
+        await self.async_stop()
 
     async def async_start(self) -> None:
         """Start cleaning. Mirrors set(value=1) in platformAccessory.ts."""
