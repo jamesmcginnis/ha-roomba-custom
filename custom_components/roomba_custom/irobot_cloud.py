@@ -4,14 +4,6 @@ iRobot cloud discovery — Python port of:
   - src/scripts/getRoombaIP.js           (UDP broadcast discovery)
 
 from homebridge-iRobot-v2 v3.2.5-alpha.4 (taurgis/homebridge-iRobot-v2)
-
-Flow (mirrors the Homebridge scripts exactly):
-  1. POST to Gigya accounts.login  →  get UID + UIDSignature + sessionToken
-  2. POST to iRobot /v2/login      →  get robot list with blid, password, name
-  3. UDP broadcast 'irobotmcs' on port 5678  →  get each robot's current IP
-
-All credentials stay on your local network after step 2 — the IP discovery
-in step 3 is purely local and requires no internet.
 """
 
 from __future__ import annotations
@@ -27,27 +19,20 @@ import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
-# --- Constants ported directly from getRoombaCredentials.js ---
 GIGYA_API_KEY = "3_rWtvxmUKwgOzu3AUPTMLnM46lj-LxURGflmu5PcE_sGptTbD-wMeshVbLvYpq01K"
 GIGYA_URL     = "https://accounts.us1.gigya.com/accounts.login"
 IROBOT_APP_ID = "ANDROID-C7FB240E-DF34-42D7-AE4E-A8C17079A294"
 
-# iRobot tries server 1 then falls back to server 2 (mirrors loginToIRobot)
 IROBOT_LOGIN_URLS = [
     "https://unauth1.prod.iot.irobotapi.com/v2/login",
     "https://unauth2.prod.iot.irobotapi.com/v2/login",
 ]
 
-# UDP discovery (mirrors getRoombaIP.js)
 DISCOVERY_PORT    = 5678
 DISCOVERY_MESSAGE = b"irobotmcs"
-DISCOVERY_TIMEOUT = 5.0   # seconds per attempt
-DISCOVERY_RETRIES = 5
+DISCOVERY_TIMEOUT = 5.0
+DISCOVERY_RETRIES = 3
 
-
-# ---------------------------------------------------------------------------
-# Data classes
-# ---------------------------------------------------------------------------
 
 @dataclass
 class DiscoveredRobot:
@@ -63,48 +48,45 @@ class CloudAuthError(Exception):
     """Raised when Gigya or iRobot login fails."""
 
 
-class RobotNotFoundError(Exception):
-    """Raised when UDP discovery cannot locate a robot."""
-
-
 # ---------------------------------------------------------------------------
 # Step 1 — Gigya login
 # ---------------------------------------------------------------------------
 
 async def _gigya_login(session: aiohttp.ClientSession, email: str, password: str) -> dict:
-    """
-    POST to Gigya accounts.login.
-    Mirrors gigyaLoginOptions + loginGigyaResponseHandler in getRoombaCredentials.js
-    """
+    """POST to Gigya accounts.login — mirrors getRoombaCredentials.js"""
     params = {
-        "apiKey":          GIGYA_API_KEY,
-        "targetenv":       "mobile",
-        "loginID":         email,
-        "password":        password,
-        "format":          "json",
-        "targetEnv":       "mobile",
+        "apiKey":     GIGYA_API_KEY,
+        "targetenv":  "mobile",
+        "loginID":    email,
+        "password":   password,
+        "format":     "json",
+        "targetEnv":  "mobile",
     }
 
-    async with session.post(GIGYA_URL, params=params) as resp:
-        if resp.status in (401, 403):
-            raise CloudAuthError("invalid_credentials")
-        if resp.status == 400:
-            raise CloudAuthError("bad_request")
-        if resp.status != 200:
-            raise CloudAuthError(f"gigya_error_{resp.status}")
+    try:
+        async with session.post(GIGYA_URL, params=params) as resp:
+            if resp.status in (401, 403):
+                raise CloudAuthError("invalid_credentials")
+            if resp.status == 400:
+                raise CloudAuthError("bad_request")
+            if resp.status != 200:
+                raise CloudAuthError(f"gigya_http_{resp.status}")
+            body = await resp.json(content_type=None)
+    except CloudAuthError:
+        raise
+    except Exception as exc:
+        raise CloudAuthError("gigya_connection_failed") from exc
 
-        body = await resp.json(content_type=None)
-
-    if body.get("statusCode") == 403:
+    if body.get("statusCode") in (400, 403):
         raise CloudAuthError("invalid_credentials")
-    if body.get("statusCode") == 400 or body.get("errorCode", 0) != 0:
-        raise CloudAuthError("gigya_error")
+    if body.get("errorCode", 0) != 0:
+        raise CloudAuthError(f"gigya_error_{body.get('errorCode')}")
 
     required = ("UID", "UIDSignature", "signatureTimestamp", "sessionInfo")
     if not all(body.get(k) for k in required):
         raise CloudAuthError("gigya_missing_fields")
 
-    _LOGGER.debug("Gigya login successful for %s", email)
+    _LOGGER.debug("Gigya login OK for %s", email)
     return body
 
 
@@ -113,11 +95,7 @@ async def _gigya_login(session: aiohttp.ClientSession, email: str, password: str
 # ---------------------------------------------------------------------------
 
 async def _irobot_login(session: aiohttp.ClientSession, gigya_body: dict) -> dict[str, Any]:
-    """
-    POST to iRobot unauth server.
-    Mirrors loginToIRobot + loginIrobotResponseHandler in getRoombaCredentials.js
-    Falls back from server 1 → server 2 exactly as the JS does.
-    """
+    """POST to iRobot unauth server — mirrors loginToIRobot in getRoombaCredentials.js"""
     payload = {
         "app_id":                 IROBOT_APP_ID,
         "assume_robot_ownership": 0,
@@ -134,11 +112,12 @@ async def _irobot_login(session: aiohttp.ClientSession, gigya_body: dict) -> dic
             async with session.post(url, json=payload) as resp:
                 body = await resp.json(content_type=None)
             if "robots" in body:
-                _LOGGER.debug("iRobot login OK via %s, found %d robot(s)", url, len(body["robots"]))
+                _LOGGER.debug("iRobot login OK via %s — %d robot(s)", url, len(body["robots"]))
                 return body["robots"]
+            _LOGGER.debug("iRobot login: no robots key in response from %s: %s", url, body)
         except Exception as exc:
             last_error = exc
-            _LOGGER.debug("iRobot login failed on %s: %s — trying next server", url, exc)
+            _LOGGER.debug("iRobot login failed on %s: %s", url, exc)
 
     raise CloudAuthError("irobot_login_failed") from last_error
 
@@ -149,28 +128,29 @@ async def _irobot_login(session: aiohttp.ClientSession, gigya_body: dict) -> dic
 
 async def _discover_ip(blid: str) -> str | None:
     """
-    Send 'irobotmcs' UDP broadcast and listen for the robot's announcement.
-    Mirrors getRoombaIP.js — same port (5678), same message, same hostname check.
+    Send 'irobotmcs' UDP broadcast and listen for the robot's reply.
+    Mirrors getRoombaIP.js.
 
-    Returns the IP string, or None if not found within timeout.
+    FIX from original: added allow_broadcast=True to the datagram endpoint.
+    Without this flag the broadcast send fails silently on most OS/network
+    configurations and no response is ever received.
     """
-    loop = asyncio.get_event_loop()
+    # Use get_running_loop() — get_event_loop() is deprecated in Python 3.10+
+    loop = asyncio.get_running_loop()
 
     for attempt in range(1, DISCOVERY_RETRIES + 1):
         _LOGGER.debug("UDP discovery attempt %d/%d for blid %s", attempt, DISCOVERY_RETRIES, blid)
 
         found_ip: str | None = None
-        event = asyncio.Event()
+        event    = asyncio.Event()
 
         class _Protocol(asyncio.DatagramProtocol):
             def datagram_received(self, data: bytes, addr: tuple) -> None:
                 nonlocal found_ip
                 try:
-                    msg = json.loads(data.decode("utf-8", errors="replace"))
-                    hostname: str = msg.get("hostname", "")
-                    # mirrors: hostname.split('-')[0] === 'Roomba' || 'iRobot'
-                    #      and: hostname.split('-')[1] === blid
-                    parts = hostname.split("-")
+                    msg      = json.loads(data.decode("utf-8", errors="replace"))
+                    hostname = msg.get("hostname", "")
+                    parts    = hostname.split("-")
                     if (
                         len(parts) >= 2
                         and parts[0] in ("Roomba", "iRobot")
@@ -182,14 +162,17 @@ async def _discover_ip(blid: str) -> str | None:
                 except Exception:
                     pass
 
+            def error_received(self, exc: Exception) -> None:
+                _LOGGER.debug("UDP error_received: %s", exc)
+
         try:
             transport, _ = await loop.create_datagram_endpoint(
                 _Protocol,
                 family=socket.AF_INET,
+                allow_broadcast=True,   # FIX: required for broadcast to work
             )
-            transport.sendto(DISCOVERY_MESSAGE, ("<broadcast>", DISCOVERY_PORT))
-
             try:
+                transport.sendto(DISCOVERY_MESSAGE, ("<broadcast>", DISCOVERY_PORT))
                 await asyncio.wait_for(event.wait(), timeout=DISCOVERY_TIMEOUT)
             except asyncio.TimeoutError:
                 pass
@@ -197,11 +180,11 @@ async def _discover_ip(blid: str) -> str | None:
                 transport.close()
 
             if found_ip:
-                _LOGGER.debug("Found %s at %s", blid, found_ip)
+                _LOGGER.debug("UDP found blid %s at %s", blid, found_ip)
                 return found_ip
 
         except Exception as exc:
-            _LOGGER.debug("UDP error on attempt %d: %s", attempt, exc)
+            _LOGGER.debug("UDP attempt %d failed: %s", attempt, exc)
 
     return None
 
@@ -212,44 +195,34 @@ async def _discover_ip(blid: str) -> str | None:
 
 async def discover_robots(email: str, password: str) -> list[DiscoveredRobot]:
     """
-    Full discovery flow mirroring the Homebridge plugin's getRoombas():
-      1. Gigya login with iRobot email + password
-      2. iRobot cloud API to get robot list (blid, password, name)
-      3. UDP broadcast to find each robot's current IP on the LAN
+    Full cloud + local discovery flow.
 
-    Returns a list of DiscoveredRobot dataclasses ready to use in the config flow.
-    Raises CloudAuthError on login failure.
+    This is a native coroutine — call it with `await discover_robots(...)`.
+    Do NOT wrap it in run_until_complete() or async_add_executor_job().
     """
     timeout = aiohttp.ClientTimeout(total=20)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        # Step 1 & 2 — cloud auth
-        gigya_body   = await _gigya_login(session, email, password)
-        robots_raw   = await _irobot_login(session, gigya_body)
+        gigya_body = await _gigya_login(session, email, password)
+        robots_raw = await _irobot_login(session, gigya_body)
 
-    # robots_raw is a dict keyed by blid:
-    #   { "blid123": { "name": "Roomba", "password": ":1:...", "ip": "..." }, ... }
     robots: list[DiscoveredRobot] = []
 
     for blid, info in robots_raw.items():
-        name     = info.get("name", f"Roomba ({blid[:6]})")
+        name     = info.get("name") or f"Roomba ({blid[:6]})"
         password = info.get("password", "")
 
-        # Try IP from cloud first (sometimes present), then UDP discovery
         ip = info.get("ip") or ""
         if not ip:
-            _LOGGER.info("No cloud IP for %s — trying UDP discovery", name)
+            _LOGGER.info("No cloud IP for '%s' — trying UDP broadcast discovery", name)
             ip = await _discover_ip(blid) or ""
 
         if not ip:
-            _LOGGER.warning("Could not find IP for %s — you can enter it manually", name)
+            _LOGGER.warning("Could not find IP for '%s' — user will need to enter it manually", name)
 
         robots.append(DiscoveredRobot(
-            name     = name,
-            blid     = blid,
-            password = password,
-            ip       = ip,
-            sku      = info.get("sku", ""),
+            name=name, blid=blid, password=password, ip=ip,
+            sku=info.get("sku", ""),
         ))
-        _LOGGER.info("Discovered robot: %s  blid=%s  ip=%s", name, blid, ip or "unknown")
+        _LOGGER.info("Robot: name=%s  blid=%s  ip=%s", name, blid, ip or "not found")
 
     return robots
