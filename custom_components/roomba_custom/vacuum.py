@@ -233,7 +233,17 @@ class RoombaVacuum(StateVacuumEntity):
         await self.async_stop()
 
     async def async_start(self) -> None:
-        """Start cleaning. Mirrors set(value=1) in platformAccessory.ts."""
+        """Start cleaning. Mirrors set(value=1) in platformAccessory.ts.
+
+        FIX 3: Only send `resume` when the robot is actually in a paused
+        mission. Previously `clean()` (start) and `resume()` were sent
+        unconditionally back-to-back with no real delay between them. If the
+        robot hadn't fully processed the fresh `start` before `resume`
+        arrived, `resume` could revive an old cached mission (e.g. a
+        previously paused run that was already mostly complete) instead of
+        the new one — causing the robot to think it was nearly done and
+        return to dock far earlier than a real full-house clean.
+        """
         if self._starting:
             _LOGGER.info("Roomba is already starting a cycle, skipping")
             return
@@ -243,8 +253,14 @@ class RoombaVacuum(StateVacuumEntity):
         # for non-multi-room mode in the Homebridge plugin).
         await asyncio.sleep(0)
         try:
-            await self.hass.async_add_executor_job(self._client.clean)
-            await self.hass.async_add_executor_job(self._client.resume)
+            phase = self._state.get("cleanMissionStatus", {}).get("phase", "")
+            if phase == "pause":
+                # A mission is genuinely paused — continue it rather than
+                # starting over.
+                await self.hass.async_add_executor_job(self._client.resume)
+            else:
+                # No paused mission to continue — start a fresh one only.
+                await self.hass.async_add_executor_job(self._client.clean)
         finally:
             self._starting = False
 
