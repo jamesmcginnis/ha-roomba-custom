@@ -5,7 +5,7 @@
 
 A Home Assistant custom integration for iRobot Roomba that connects **directly over your local network** — no cloud polling, no internet dependency once set up.
 
-Ported from [homebridge-iRobot-v2 v3.2.5-alpha.4](https://github.com/taurgis/homebridge-iRobot-v2/releases/tag/3.2.5-alpha.4) by taurgis, including the exact cipher-rotation fix that makes older Roomba firmware work with modern Python/OpenSSL.
+Includes a cipher-rotation fix that makes older Roomba firmware work reliably with modern Python/OpenSSL.
 
 ---
 
@@ -28,9 +28,7 @@ Ported from [homebridge-iRobot-v2 v3.2.5-alpha.4](https://github.com/taurgis/hom
 
 ## Why this integration?
 
-The built-in HA Roomba integration uses `roombapy`, which has recurring TLS cipher compatibility issues with certain Roomba firmware versions under modern Python 3.12 / OpenSSL 3. This integration ports the exact fix from the Homebridge plugin:
-
-> **"Don't infinite loop on ciphers"** — commit `ec541a8`, homebridge-iRobot-v2 v3.2.5-alpha.4
+The built-in HA Roomba integration uses `roombapy`, which has recurring TLS cipher compatibility issues with certain Roomba firmware versions under modern Python 3.12 / OpenSSL 3. This integration works around it with a "don't infinite loop on ciphers" fix:
 
 Two cipher strings are tried in sequence (`AES128-SHA256` → `TLS_AES_256_GCM_SHA384`). If the robot rejects the first via a TLS error or MQTT "identifier rejected" response, it automatically retries with the second — once, not in a loop.
 
@@ -166,14 +164,6 @@ Very new Matter-first hardware (e.g. Combo Max 705) uses a different v4 protocol
 
 **Still failing to connect**
 - Try Protocol Version `3` in manual setup — some older 800-series firmware requires it
-
----
-
-## Credits
-
-- [taurgis/homebridge-iRobot-v2](https://github.com/taurgis/homebridge-iRobot-v2) — original Homebridge plugin this is ported from
-- [koalazak/dorita980](https://github.com/koalazak/dorita980) — Roomba local MQTT protocol research
-- [pschmitt/roombapy](https://github.com/pschmitt/roombapy) — Python Roomba library
 
 ---
 
