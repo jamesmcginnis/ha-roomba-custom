@@ -104,7 +104,7 @@ The `pmap_id` and region values appear in the vacuum's `extra_state_attributes` 
 
 ## Compatible models
 
-Confirmed working: Y0.
+Confirmed working: Y0+.
 
 ---
 
