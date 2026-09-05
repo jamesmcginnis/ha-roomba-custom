@@ -51,22 +51,7 @@ Two cipher strings are tried in sequence (`AES128-SHA256` → `TLS_AES_256_GCM_S
 
 ## Setup
 
-When you add the integration you will be asked how you want to connect:
-
-### Option A — iRobot account (recommended)
-
 Enter the same **email and password** you use in the iRobot app. The integration logs into your account, finds your Roomba, and discovers its IP address automatically. If you have multiple Roombas you will be shown a list to pick from.
-
-### Option B — Manual entry
-
-Supply the IP address, BLID and local password directly. To retrieve these run the following in your HA terminal:
-
-```bash
-docker exec homeassistant python -c \
-  'import roombapy.entry_points; roombapy.entry_points.password()' YOUR_ROOMBA_IP
-```
-
-> ⚠️ Close the iRobot app first — the Roomba only allows one local connection at a time.
 
 ---
 
