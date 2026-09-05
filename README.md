@@ -85,30 +85,6 @@ After setup, click **Configure** on the integration card to adjust:
 
 ---
 
-## Bull Button Card toggle
-
-If you use [bull-button-card](https://github.com/jamesmcginnis/bull-button-card), you can add a pill-shaped toggle that flashes green while Ruby is cleaning. The card natively supports vacuum entities — no helpers or scripts needed:
-
-```yaml
-type: custom:bull-button-card
-name: Roomba
-entity: vacuum.your_roomba
-icon: mdi:robot-vacuum
-show_icon: true
-active_color: "#4e7a27"
-inactive_color: "#00000000"
-name_color: "#ffffff"
-icon_color: "#ffffff"
-flash_enabled: true
-flash_speed: 1500
-active_state:
-  - cleaning
-  - returning
-  - paused
-```
-
----
-
 ## Entities
 
 | Entity | Type | Description |
@@ -145,7 +121,7 @@ The `pmap_id` and region values appear in the vacuum's `extra_state_attributes` 
 
 ## Compatible models
 
-Confirmed working: 600, 800, 900, e, i, j and s series · Braava m6 · Roomba Combo including Y0 series.
+Confirmed working: Y0.
 
 Very new Matter-first hardware (e.g. Combo Max 705) uses a different v4 protocol that is not yet supported.
 

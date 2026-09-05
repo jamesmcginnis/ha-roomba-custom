@@ -8,7 +8,6 @@ Local network control for iRobot Roomba — with a cipher-rotation fix that make
 - **Local push** — connects directly over your LAN via MQTT/TLS, no cloud polling after setup
 - **Full control** — start, pause, stop, dock, locate, room-by-room cleaning
 - **Sensors** — battery level, bin full, stuck detection, mission time, area cleaned
-- **Bull Button Card support** — native vacuum toggle with green flash animation, no helpers needed
 
 ## Why not the built-in integration?
 
@@ -16,7 +15,7 @@ Certain Roomba firmware versions reject the TLS cipher that modern Python/OpenSS
 
 ## Compatible models
 
-600, 800, 900, e, i, j, s series · Braava m6 · Roomba Combo including Y0 series
+Y0
 
 ---
 
