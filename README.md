@@ -123,8 +123,6 @@ The `pmap_id` and region values appear in the vacuum's `extra_state_attributes` 
 
 Confirmed working: Y0.
 
-Very new Matter-first hardware (e.g. Combo Max 705) uses a different v4 protocol that is not yet supported.
-
 ---
 
 ## Troubleshooting
@@ -137,9 +135,6 @@ Very new Matter-first hardware (e.g. Combo Max 705) uses a different v4 protocol
 **Entities go unavailable**
 - Something else is holding the MQTT connection — check HA logs for `roomba_custom`
 - The integration backs off automatically for 5 minutes after 5 reconnects in 30 seconds
-
-**Still failing to connect**
-- Try Protocol Version `3` in manual setup — some older 800-series firmware requires it
 
 ---
 
