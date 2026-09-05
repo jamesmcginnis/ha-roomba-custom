@@ -66,8 +66,6 @@ docker exec homeassistant python -c \
   'import roombapy.entry_points; roombapy.entry_points.password()' YOUR_ROOMBA_IP
 ```
 
-Hold the **HOME button** on the robot for ~2 seconds when prompted.
-
 > ⚠️ Close the iRobot app first — the Roomba only allows one local connection at a time.
 
 ---
