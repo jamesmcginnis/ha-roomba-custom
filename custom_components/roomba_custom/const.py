@@ -20,7 +20,7 @@ DEFAULT_PROTOCOL_VERSION = 2
 # MQTT
 ROOMBA_MQTT_PORT = 8883
 
-# Cipher list — ported directly from homebridge-iRobot-v2 v3.2.5-alpha.4
+# Cipher list.
 # Index 0 is tried first; on TLS / "identifier rejected" errors we fall back
 # to index 1. This is the fix for "Don't infinite loop on ciphers".
 ROBOT_CIPHERS = ["AES128-SHA256", "TLS_AES_256_GCM_SHA384"]
@@ -30,7 +30,7 @@ RECONNECT_FLOOD_COUNT = 5
 RECONNECT_FLOOD_WINDOW = 30  # seconds
 RECONNECT_BACKOFF_SECONDS = 300  # 5 minutes
 
-# Phase → HA VacuumActivity mapping  (mirrors platformAccessory.ts logic)
+# Phase → HA VacuumActivity mapping
 PHASE_MAP = {
     "charge":     "docked",
     "recharge":   "docked",

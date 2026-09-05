@@ -1,7 +1,7 @@
 """Sensors for Roomba Local.
 
 Provides extra diagnostic sensors beyond what VacuumEntity exposes:
-  - Battery percentage (mirroring BatteryLevel characteristic)
+  - Battery percentage
   - Mission duration in minutes
   - Area cleaned in square feet
 """
@@ -78,7 +78,7 @@ class _RoombaBaseSensor(SensorEntity):
 
 
 class RoombaBatterySensor(_RoombaBaseSensor):
-    """Battery percentage — mirrors BatteryLevel + StatusLowBattery characteristics."""
+    """Battery percentage, with a low-battery flag exposed as an attribute."""
 
     _attr_name = "Battery"
     _attr_device_class = SensorDeviceClass.BATTERY
@@ -108,7 +108,7 @@ class RoombaBatterySensor(_RoombaBaseSensor):
 
 
 class RoombaMissionTimeSensor(_RoombaBaseSensor):
-    """Mission duration in minutes — mirrors mssnM from cleanMissionStatus."""
+    """Mission duration in minutes, from cleanMissionStatus.mssnM."""
 
     _attr_name = "Mission Time"
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
@@ -124,7 +124,7 @@ class RoombaMissionTimeSensor(_RoombaBaseSensor):
 
 
 class RoombaAreaSensor(_RoombaBaseSensor):
-    """Area cleaned in square feet — mirrors sqft from cleanMissionStatus."""
+    """Area cleaned in square feet, from cleanMissionStatus.sqft."""
 
     _attr_name = "Area Cleaned"
     _attr_native_unit_of_measurement = "sqft"

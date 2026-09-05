@@ -1,9 +1,7 @@
 """
-iRobot cloud discovery — Python port of:
-  - src/scripts/getRoombaCredentials.js  (Gigya login → iRobot API)
-  - src/scripts/getRoombaIP.js           (UDP broadcast discovery)
-
-from homebridge-iRobot-v2 v3.2.5-alpha.4 (taurgis/homebridge-iRobot-v2)
+iRobot cloud discovery:
+  - Gigya login → iRobot API for account authentication
+  - UDP broadcast discovery for finding the robot's local IP
 """
 
 from __future__ import annotations
@@ -53,7 +51,7 @@ class CloudAuthError(Exception):
 # ---------------------------------------------------------------------------
 
 async def _gigya_login(session: aiohttp.ClientSession, email: str, password: str) -> dict:
-    """POST to Gigya accounts.login — mirrors getRoombaCredentials.js"""
+    """POST to Gigya accounts.login."""
     params = {
         "apiKey":     GIGYA_API_KEY,
         "targetenv":  "mobile",
@@ -95,7 +93,7 @@ async def _gigya_login(session: aiohttp.ClientSession, email: str, password: str
 # ---------------------------------------------------------------------------
 
 async def _irobot_login(session: aiohttp.ClientSession, gigya_body: dict) -> dict[str, Any]:
-    """POST to iRobot unauth server — mirrors loginToIRobot in getRoombaCredentials.js"""
+    """POST to iRobot unauth server to complete login."""
     payload = {
         "app_id":                 IROBOT_APP_ID,
         "assume_robot_ownership": 0,
@@ -129,11 +127,10 @@ async def _irobot_login(session: aiohttp.ClientSession, gigya_body: dict) -> dic
 async def _discover_ip(blid: str) -> str | None:
     """
     Send 'irobotmcs' UDP broadcast and listen for the robot's reply.
-    Mirrors getRoombaIP.js.
 
-    FIX from original: added allow_broadcast=True to the datagram endpoint.
-    Without this flag the broadcast send fails silently on most OS/network
-    configurations and no response is ever received.
+    Uses allow_broadcast=True on the datagram endpoint. Without this flag
+    the broadcast send fails silently on most OS/network configurations and
+    no response is ever received.
     """
     # Use get_running_loop() — get_event_loop() is deprecated in Python 3.10+
     loop = asyncio.get_running_loop()

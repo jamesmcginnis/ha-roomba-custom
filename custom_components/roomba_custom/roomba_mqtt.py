@@ -1,18 +1,17 @@
 """
 Roomba local MQTT client.
 
-Ported from homebridge-iRobot-v2 v3.2.5-alpha.4 (taurgis/homebridge-iRobot-v2).
-
 Key fix — 'Don't infinite loop on ciphers':
-  The plugin holds a list ROBOT_CIPHERS = ['AES128-SHA256', 'TLS_AES_256_GCM_SHA384'].
-  It tries index 0 first. On a TLS error or 'identifier rejected' it increments
-  cipherIndex once (bounded by list length) and reconnects. This prevents the
-  infinite retry loop that older Roomba firmware causes with modern OpenSSL/Python.
+  ROBOT_CIPHERS = ['AES128-SHA256', 'TLS_AES_256_GCM_SHA384'].
+  Index 0 is tried first. On a TLS error or 'identifier rejected' the cipher
+  index is incremented once (bounded by list length) and the client
+  reconnects. This prevents the infinite retry loop that older Roomba
+  firmware causes with modern OpenSSL/Python.
 
-  Python equivalent: build a custom ssl.SSLContext and call set_ciphers() with
+  Implementation: build a custom ssl.SSLContext and call set_ciphers() with
   whichever cipher string is currently selected.
 
-Reconnect flood protection (also from platformAccessory.ts):
+Reconnect flood protection:
   If the robot reconnects more than 5 times within 30 seconds, disconnect and
   wait 5 minutes before trying again.
 """
@@ -44,7 +43,7 @@ def _build_ssl_context(cipher: str) -> ssl.SSLContext:
     """
     Build an SSL context for the given cipher string.
 
-    Mirrors the dorita980 approach used by homebridge-iRobot-v2:
+    Approach:
       - No certificate verification (Roomba uses a self-signed cert).
       - SECLEVEL=0 so that the older cipher suites the robot advertises are
         accepted without OpenSSL rejecting them.
@@ -73,7 +72,7 @@ def _build_ssl_context(cipher: str) -> ssl.SSLContext:
 
 def _should_try_different_cipher(error: Exception) -> bool:
     """
-    Mirror shouldTryDifferentCipher() from platformAccessory.ts.
+    Decide whether a connection error indicates a cipher mismatch.
 
     Returns True when the error looks like a TLS handshake failure or an
     MQTT 'identifier rejected' response — both indicate the robot rejected
@@ -105,8 +104,8 @@ class RoombaClient:
     """
     Local MQTT client for iRobot Roomba.
 
-    Fires callbacks whenever the robot state changes.  Handles cipher
-    rotation and reconnect-flood protection exactly as the Homebridge plugin.
+    Fires callbacks whenever the robot state changes. Handles cipher
+    rotation and reconnect-flood protection.
 
     Usage:
         client = RoombaClient(host, blid, password)
@@ -137,7 +136,7 @@ class RoombaClient:
         self._state: dict[str, Any] = {}
         self._connected = False
 
-        # Reconnect flood detection (mirrors platformAccessory.ts)
+        # Reconnect flood detection
         self._reconnect_timestamps: list[float] = []
 
         # Callbacks: called with the full state dict on every state update.
@@ -179,7 +178,7 @@ class RoombaClient:
         _LOGGER.info("Roomba client stopped")
 
     # ------------------------------------------------------------------
-    # Commands (mirror dorita980.Local methods used in platformAccessory.ts)
+    # Commands
     # ------------------------------------------------------------------
 
     def clean(self) -> None:
@@ -320,7 +319,7 @@ class RoombaClient:
 
         _LOGGER.warning("Roomba unexpectedly disconnected (rc=%s)", rc)
 
-        # Reconnect flood protection — mirrors platformAccessory.ts:
+        # Reconnect flood protection:
         # if >5 reconnects in <=30 s, back off for 5 minutes.
         now = time.time()
         self._reconnect_timestamps.append(now)
@@ -355,8 +354,8 @@ class RoombaClient:
         """
         Decide whether to rotate cipher or just log.
 
-        Mirrors the on('error') handler in platformAccessory.ts:
-            if (shouldTryDifferentCipher(error) && cipherIndex < ROBOT_CIPHERS.length - 1)
+        Rotates to the next cipher when the error looks like a cipher
+        mismatch and there's still an untried cipher left in the list.
         """
         _LOGGER.error("Roomba error: %s", exc)
 

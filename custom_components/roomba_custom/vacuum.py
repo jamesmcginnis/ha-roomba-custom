@@ -1,8 +1,6 @@
 """Vacuum platform for Roomba Local.
 
-Ported from iRobotPlatformAccessory in homebridge-iRobot-v2 v3.2.5-alpha.4.
-
-State mapping (mirrors getHomekitActive / platformAccessory phase logic):
+State mapping (phase → HA activity):
   phase=run          → cleaning
   cycle=evac         → cleaning
   phase=charge       → docked
@@ -14,7 +12,7 @@ State mapping (mirrors getHomekitActive / platformAccessory phase logic):
   phase=stop         → idle
   phase=stuck        → error
 
-Off-action (mirrors config offAction):
+Off-action (configurable):
   first_action()  → e.g. pause()  (sent immediately)
   second_action() → e.g. dock()   (sent after state settles, up to 5 s)
 """
@@ -73,8 +71,8 @@ async def async_setup_entry(
 class RoombaVacuum(StateVacuumEntity):
     """Representation of a Roomba vacuum.
 
-    Exposes all state and commands that the Homebridge plugin provided,
-    translated into Home Assistant's VacuumEntity interface.
+    Exposes robot state and commands via Home Assistant's VacuumEntity
+    interface.
     """
 
     _attr_has_entity_name = True
@@ -100,7 +98,7 @@ class RoombaVacuum(StateVacuumEntity):
 
         self._state: dict[str, Any] = {}
         self._connected = False
-        self._starting = False  # mirrors `starting` flag in platformAccessory.ts
+        self._starting = False  # guards against overlapping start calls
 
     # ------------------------------------------------------------------
     # HA lifecycle
@@ -192,7 +190,7 @@ class RoombaVacuum(StateVacuumEntity):
         }
 
     # ------------------------------------------------------------------
-    # Commands — mirrors set() and related methods in platformAccessory.ts
+    # Commands
     # ------------------------------------------------------------------
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -207,14 +205,14 @@ class RoombaVacuum(StateVacuumEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off — alias for async_stop.
 
-        Mirrors the off-action config (pause+dock by default).
+        Uses the configured off-action (pause+dock by default).
         """
         await self.async_stop()
 
     async def async_start(self) -> None:
-        """Start cleaning. Mirrors set(value=1) in platformAccessory.ts.
+        """Start cleaning.
 
-        FIX 3: Only send `resume` when the robot is actually in a paused
+        FIX: Only send `resume` when the robot is actually in a paused
         mission. Previously `clean()` (start) and `resume()` were sent
         unconditionally back-to-back with no real delay between them. If the
         robot hadn't fully processed the fresh `start` before `resume`
@@ -228,8 +226,8 @@ class RoombaVacuum(StateVacuumEntity):
             return
 
         self._starting = True
-        # Small delay to let automations/scenes settle (mirrors setTimeout 0ms
-        # for non-multi-room mode in the Homebridge plugin).
+        # Small delay to let automations/scenes settle before issuing the
+        # command.
         await asyncio.sleep(0)
         try:
             phase = self._state.get("cleanMissionStatus", {}).get("phase", "")
@@ -249,9 +247,8 @@ class RoombaVacuum(StateVacuumEntity):
     async def async_stop(self, **kwargs: Any) -> None:
         """Stop and perform the configured off-action.
 
-        Mirrors set(value=0) in platformAccessory.ts: fire first action
-        immediately, then wait up to 5 s for a state update before firing
-        the second action.
+        Fires the first action immediately, then waits up to 5 s for a
+        state update before firing the second action.
         """
         off_action_key = self._entry.options.get(
             CONF_OFF_ACTION,
@@ -276,7 +273,7 @@ class RoombaVacuum(StateVacuumEntity):
         await self.hass.async_add_executor_job(self._client.dock)
 
     async def async_locate(self, **kwargs: Any) -> None:
-        """Make the robot beep. Mirrors identify() in platformAccessory.ts."""
+        """Make the robot beep."""
         await self.hass.async_add_executor_job(self._client.find)
 
     async def async_send_command(
@@ -291,7 +288,7 @@ class RoombaVacuum(StateVacuumEntity):
         Supports:
           clean_room  — params must include pmap_id, user_pmapv_id, regions list
           evac        — trigger evacuation/emptying
-          any dorita980 command name
+          any command name supported by the underlying client
         """
         if command == "clean_room" and isinstance(params, dict):
             await self.hass.async_add_executor_job(

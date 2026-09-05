@@ -1,8 +1,8 @@
 """Binary sensors for Roomba Local.
 
-Mirrors the bin and stuck sensors from homebridge-iRobot-v2 v3.2.5-alpha.4:
-  - Bin Full   (was a Contact/Motion/Filter sensor in HomeKit)
-  - Stuck      (was a Motion sensor in HomeKit — 'hideStuckSensor' option)
+  - Bin Full   — on when the robot reports the bin is full
+  - Stuck      — on when the robot reports it is stuck (configurable via
+                 the "Hide Stuck sensor" option)
 """
 
 from __future__ import annotations
@@ -81,9 +81,7 @@ class RoombaBinSensor(_RoombaBaseSensor):
     """
     Bin-full sensor.
 
-    In the Homebridge plugin this was exposed as up to three HomeKit services
-    (FilterMaintenance, ContactSensor, MotionSensor depending on config).
-    In HA a single binary_sensor with device_class=problem covers all cases.
+    A single binary_sensor with device_class=problem covers all cases.
     """
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -102,8 +100,7 @@ class RoombaStuckSensor(_RoombaBaseSensor):
     """
     Stuck sensor.
 
-    Mirrors the 'Stuck' MotionSensor service from the Homebridge plugin
-    (hideStuckSensor = False). Fires when phase == 'stuck'.
+    Fires when phase == 'stuck'.
     """
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM

@@ -1,7 +1,6 @@
 """Roomba Local — Home Assistant custom integration.
 
-Ported from homebridge-iRobot-v2 v3.2.5-alpha.4 (taurgis/homebridge-iRobot-v2).
-Connects directly to the Roomba on your LAN via MQTT/TLS with the same
+Connects directly to the Roomba on your LAN via MQTT/TLS with a
 cipher-rotation fix that makes older firmware models work with modern OpenSSL.
 """
 

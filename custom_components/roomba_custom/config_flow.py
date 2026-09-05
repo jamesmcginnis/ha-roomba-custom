@@ -1,16 +1,16 @@
 """
 Config flow for Roomba Custom.
 
-Step flow mirrors the Homebridge plugin's setup exactly:
+Step flow:
 
-  Path A — Cloud (like Homebridge):
+  Path A — Cloud:
     user → cloud (email + password) → pick (if multiple robots) → done
 
   Path B — Manual (for users who don't want to use cloud credentials):
     user → manual (IP + BLID + password) → done
 
 The cloud path logs into Gigya and the iRobot API to auto-discover all your
-robots — same approach as getRoombaCredentials.js in homebridge-iRobot-v2.
+robots.
 """
 
 from __future__ import annotations
