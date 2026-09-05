@@ -39,9 +39,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import SIGNAL_CONNECTION_CHANGED, SIGNAL_STATE_UPDATED, RoombaData
 from .const import (
     CONF_HIDE_BIN_SENSOR,
-    CONF_LOW_BATTERY,
     CONF_OFF_ACTION,
-    DEFAULT_LOW_BATTERY,
     DEFAULT_OFF_ACTION,
     DOMAIN,
     OFF_ACTIONS,
@@ -56,7 +54,6 @@ SUPPORTED_FEATURES = (
     | VacuumEntityFeature.PAUSE
     | VacuumEntityFeature.RETURN_HOME
     | VacuumEntityFeature.LOCATE
-    | VacuumEntityFeature.BATTERY
     | VacuumEntityFeature.STATE
     | VacuumEntityFeature.SEND_COMMAND
     | VacuumEntityFeature.TURN_ON
@@ -179,24 +176,6 @@ class RoombaVacuum(StateVacuumEntity):
         # treat the entity as fully unknown and disables all controls including
         # the on/off toggle, even when the robot is connected and ready.
         return VacuumActivity.IDLE
-
-    @property
-    def battery_level(self) -> int | None:
-        return self._state.get("batPct")
-
-    @property
-    def battery_icon(self) -> str:
-        low_threshold = self._entry.options.get(
-            CONF_LOW_BATTERY,
-            self._entry.data.get(CONF_LOW_BATTERY, DEFAULT_LOW_BATTERY),
-        )
-        level = self.battery_level or 0
-        charging = self._state.get("cleanMissionStatus", {}).get("phase") == "charge"
-        if charging:
-            return "mdi:battery-charging"
-        if level <= low_threshold:
-            return "mdi:battery-alert"
-        return "mdi:battery"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
