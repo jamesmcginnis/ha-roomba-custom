@@ -1,5 +1,9 @@
 # Roomba Custom (Legacy TLS)
 
+If you enjoy Roomba Custom, you can support its development:
+
+[![Buy Me a Coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20Me%20a%20Coffee&emoji=&slug=jamesmcginnis&button_colour=FFDD00&font_colour=000000&font_family=Inter&outline_colour=000000&coffee_colour=ffffff)](https://buymeacoffee.com/jamesmcginnis)
+
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License](https://img.shields.io/github/license/jamesmcginnis/ha-roomba-custom.svg?style=flat-square)](LICENSE)
 
@@ -11,12 +15,18 @@ Includes a cipher-rotation fix that makes older Roomba firmware work reliably wi
 
 ## Install via HACS
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jamesmcginnis&repository=ha-roomba-custom&category=integration)
+**Step 1 — Add the repository to HACS:**
 
-1. Click the button above — Home Assistant opens and asks you to confirm adding the repo
+[![Open your Home Assistant instance and add this repository to HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jamesmcginnis&repository=ha-roomba-custom&category=integration)
+
+**Step 2 — After downloading and restarting, add the integration:**
+
+[![Open your Home Assistant instance and start setting up Roomba Custom.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=roomba_custom)
+
+1. Click the **Add to HACS** button above, or in Home Assistant open **HACS** → **⋮ menu** (top right) → **Custom repositories** and add `https://github.com/jamesmcginnis/ha-roomba-custom` as an **Integration** repository
 2. In HACS find **Roomba Custom (Legacy TLS)** and click **Download**
 3. Restart Home Assistant
-4. Go to **Settings → Devices & Services → Add Integration** → search **Roomba Custom**
+4. Click the **Add Integration** button above, or go to **Settings → Devices & Services → + Add Integration** → search **Roomba Custom**
 
 ### Manual installation
 
