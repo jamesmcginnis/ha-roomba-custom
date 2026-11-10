@@ -1,12 +1,14 @@
 {
   "domain": "roomba_custom",
-  "name": "Roomba Local (Legacy TLS)",
-  "version": "0.0.5",
+  "name": "Roomba Custom (Legacy TLS)",
+  "version": "1.0.1",
   "config_flow": true,
   "documentation": "https://github.com/jamesmcginnis/ha-roomba-custom",
   "issue_tracker": "https://github.com/jamesmcginnis/ha-roomba-custom/issues",
   "dependencies": [],
   "codeowners": [],
-  "requirements": ["paho-mqtt>=1.6.1"],
+  "requirements": [
+    "paho-mqtt>=1.6.1"
+  ],
   "iot_class": "local_push"
 }
